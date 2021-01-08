@@ -3,8 +3,9 @@
 #include <system_error>
 
 constexpr LPCWSTR WINDOW_CLASS_NAME = L"stuff_window_class";
-constexpr DWORD WM_COMMAND_LEFT_MENU = WM_APP + 1;
+constexpr DWORD WM_COMMAND_LEFT_MENU  = WM_APP + 1;
 constexpr DWORD WM_COMMAND_RIGHT_MENU = WM_APP + 2;
+constexpr DWORD WM_COMMAND_SEND_ALT   = WM_APP + 3;
 
 std::unordered_map<DWORD, Stuff*> Stuff::threadContext;
 uint64_t Stuff::keyStates[4];
@@ -132,6 +133,10 @@ LRESULT Stuff::WindowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPara
             { VK_CONVERT, 0, KEYEVENTF_KEYUP, 0, 0 }
             });
         return TRUE;
+    case WM_COMMAND_SEND_ALT:
+        printf("send ALT KEY\n");
+        Stuff::SendKeyboardInputs({ { VK_LMENU, 0, 0, 0, 0 }, { (WORD)wParam, 0, 0, 0, 0 } });
+        return TRUE;
     default:
         return ::DefWindowProcW(window, message, wParam, lParam);
     }
@@ -145,23 +150,31 @@ LRESULT Stuff::HookProc(int code, WPARAM wParam, LPARAM lParam)
 
     KBDLLHOOKSTRUCT* kbdInfo = reinterpret_cast<KBDLLHOOKSTRUCT*>(lParam);
     //printf("action: %04x, vk: %04x, flag: %08x\n", wParam, kbdInfo->vkCode, kbdInfo->flags);
+    if (kbdInfo->flags & LLKHF_INJECTED)
+    {
+        return result;
+    }
     switch (wParam)
     {
     case WM_SYSKEYDOWN:
     case WM_KEYDOWN:
+        //printf("action: %04llx, vk: %04x, flag: 0x%08x\n", wParam, kbdInfo->vkCode, kbdInfo->flags);
         // no key pressed
-        if (0 == Stuff::keyStates[0] + Stuff::keyStates[1] + Stuff::keyStates[2] + Stuff::keyStates[3])
-        {
-            if (kbdInfo->vkCode == VK_LMENU || kbdInfo->vkCode == VK_RMENU)
-            {
-                Stuff::ready = true;
-                // disable when only [ALT] pressed
-                result = 1;
-            }
+        if (   kbdInfo->vkCode == VK_LMENU && ( Stuff::keyStates[2] == (1ull << VK_LMENU % 64) || Stuff::keyStates[2] == 0 ) && 0 == Stuff::keyStates[0] + Stuff::keyStates[1] + Stuff::keyStates[3]
+            || kbdInfo->vkCode == VK_RMENU && ( Stuff::keyStates[2] == (1ull << VK_RMENU % 64) || Stuff::keyStates[2] == 0 ) && 0 == Stuff::keyStates[0] + Stuff::keyStates[1] + Stuff::keyStates[3]
+        ){
+            Stuff::ready = true;
+            // disable when only [ALT] pressed
+            result = 1;
+            //printf("block alt\n");
         }
         else
         {
-            Stuff::ready = false;
+            //printf("trough alt\n");
+            Stuff::ready = false;   
+            if (Stuff::keyStates[2] & (1ull << VK_LMENU % 64)) {
+                PostMessage(self->window, WM_COMMAND_SEND_ALT, kbdInfo->vkCode, 0);
+            }
         }
         Stuff::keyStates[kbdInfo->vkCode / 64] |= 1ull << (kbdInfo->vkCode % 64);
         break;
