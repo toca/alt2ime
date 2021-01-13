@@ -132,10 +132,10 @@ LRESULT Stuff::WindowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPara
             { VK_CONVERT, 0, 0, 0, 0 },
             { VK_CONVERT, 0, KEYEVENTF_KEYUP, 0, 0 }
             });
-        return TRUE;
+        return TRUE;    
     case WM_COMMAND_SEND_ALT:
         printf("send ALT KEY\n");
-        Stuff::SendKeyboardInputs({ { VK_LMENU, 0, 0, 0, 0 }, { (WORD)wParam, 0, 0, 0, 0 } });
+        Stuff::SendKeyboardInputs({ { (WORD)lParam, 0, 0, 0, 0 }, { (WORD)wParam, 0, 0, 0, 0 } });
         return TRUE;
     default:
         return ::DefWindowProcW(window, message, wParam, lParam);
@@ -173,7 +173,12 @@ LRESULT Stuff::HookProc(int code, WPARAM wParam, LPARAM lParam)
             //printf("trough alt\n");
             Stuff::ready = false;   
             if (Stuff::keyStates[2] & (1ull << VK_LMENU % 64)) {
-                PostMessage(self->window, WM_COMMAND_SEND_ALT, kbdInfo->vkCode, 0);
+                PostMessage(self->window, WM_COMMAND_SEND_ALT, kbdInfo->vkCode, VK_LMENU);
+                result = 1;
+            }
+            else if (Stuff::keyStates[2] & (1ull << VK_RMENU % 64)) {
+                PostMessage(self->window, WM_COMMAND_SEND_ALT, kbdInfo->vkCode, VK_RMENU);
+                result = 1;
             }
         }
         Stuff::keyStates[kbdInfo->vkCode / 64] |= 1ull << (kbdInfo->vkCode % 64);
